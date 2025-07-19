@@ -11,6 +11,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import time
 
+
 def test_website():
     # Set up driver (not headless for debugging)
     chrome_options = Options()
@@ -20,22 +21,22 @@ def test_website():
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920x1080")
-    
+
     try:
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
-        
+
         # Navigate to the website
         url = "https://complaint.pmc.gov.in/rptTokenDetailsByTokenCitizen"
         print(f"Loading URL: {url}")
         driver.get(url)
-        
+
         # Wait for page to load
         time.sleep(3)
-        
+
         # Get page source
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+
         # Try to find all input fields
         print("\n=== All Input Fields ===")
         inputs = driver.find_elements(By.TAG_NAME, "input")
@@ -47,7 +48,7 @@ def test_website():
             print(f"  Placeholder: {inp.get_attribute('placeholder')}")
             print(f"  Class: {inp.get_attribute('class')}")
             print()
-        
+
         # Try to find all buttons
         print("\n=== All Buttons ===")
         buttons = driver.find_elements(By.TAG_NAME, "button")
@@ -57,7 +58,7 @@ def test_website():
             print(f"  ID: {btn.get_attribute('id')}")
             print(f"  Class: {btn.get_attribute('class')}")
             print()
-        
+
         # Also check for input type="submit"
         submit_buttons = driver.find_elements(By.XPATH, "//input[@type='submit']")
         for i, btn in enumerate(submit_buttons):
@@ -66,20 +67,21 @@ def test_website():
             print(f"  ID: {btn.get_attribute('id')}")
             print(f"  Name: {btn.get_attribute('name')}")
             print()
-        
+
         # Save page source for inspection
-        with open('pmc_page_source.html', 'w', encoding='utf-8') as f:
+        with open("tests/pmc_page_source.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         print("\nPage source saved to pmc_page_source.html")
-        
+
         # Keep browser open for 10 seconds to inspect
         print("\nBrowser will close in 10 seconds...")
         time.sleep(10)
-        
+
     except Exception as e:
         print(f"Error: {e}")
     finally:
         driver.quit()
+
 
 if __name__ == "__main__":
     test_website()

@@ -3,6 +3,9 @@ import unittest
 import sqlite3
 import json
 import os
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from repository import SQLiteRepository
 
 class TestDatabase(unittest.TestCase):
@@ -21,7 +24,7 @@ class TestDatabase(unittest.TestCase):
 
     def test_data_population(self):
         # Load test data from JSON file
-        with open("pmc_complaint_statuses.json") as f:
+        with open("tests/pmc_complaint_statuses.json") as f:
             test_data = json.load(f)
 
         # Save to database
