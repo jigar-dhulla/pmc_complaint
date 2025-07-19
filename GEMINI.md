@@ -2,13 +2,27 @@
 
 This file contains important information for the Gemini agent to work effectively on this project.
 
+## Development Environment
+
+This project uses Docker Compose to run a MySQL database for local development.
+
+**To start the development environment:**
+
+```bash
+docker-compose up -d
+```
+
+This will start a MySQL container. The application is configured via the `.env` file to connect to this container.
+
 ## Python Virtual Environment
 
-All Python scripts and tests in this project must be run within the activated virtual environment to ensure access to the correct dependencies.
+All Python scripts and tests in this project must be run within the activated virtual environment to ensure access to the correct dependencies. It is recommended to use Python 3.13.
 
 **To activate the virtual environment:**
 
 ```bash
+# Create with Python 3.13
+python3.13 -m venv venv
 source venv/bin/activate
 ```
 
@@ -24,27 +38,12 @@ pip install selenium webdriver-manager mysql-connector-python python-dotenv
 source venv/bin/activate && python3 pmc_complaint_checker_v2.py T60137 T60268
 ```
 
-## Running Tests
 
-All tests are located in the `tests/` directory.
-
-**To run the database test:**
-
-```bash
-source venv/bin/activate && python3 tests/test_database.py
-```
-
-**To run the website test:**
-
-```bash
-source venv/bin/activate && python3 tests/test_website.py
-```
 
 ## Environment Variables
 
 This project uses a `.env` file for managing environment variables. You can copy the `.env.example` file to create your own `.env` file.
 
-- `DB_TYPE`: `sqlite` or `mysql`
 - `DB_HOST`: (for MySQL)
 - `DB_USER`: (for MySQL)
 - `DB_PASSWORD`: (for MySQL)

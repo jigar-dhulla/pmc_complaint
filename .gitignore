@@ -3,3 +3,5 @@ __pycache__/
 test_pmc_complaints.db
 pmc_complaints.db
 .env
+lambda_layer/
+lambda_layer.zip

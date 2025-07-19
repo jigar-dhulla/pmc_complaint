@@ -7,44 +7,25 @@ This Python script automates checking the status of multiple PMC (Pune Municipal
 - Automated web scraping using Selenium
 - Supports multiple token numbers in a single run
 - Runs in headless mode (no browser window)
-- Saves results to a SQLite or MySQL database and a JSON file
+- Saves results to a MySQL database and a JSON file
 - Comprehensive error handling
 - Detailed status tracking and history
 - AWS Lambda compatible
 
 ## Prerequisites
 
-1. **Python 3.x** installed
+1. **Python 3.13** installed
 2. **Google Chrome** browser installed (for local development)
-3. **ChromeDriver** installed (for local development)
 
 ## Installation
 
-### 1. Install Chrome (if not already installed)
+### 1. Set up Python environment
 
-On macOS:
-```bash
-brew install --cask google-chrome
-```
-
-### 2. Install ChromeDriver
-
-On macOS with Homebrew:
-```bash
-brew install --cask chromedriver
-```
-
-After installation, you may need to allow ChromeDriver in System Preferences:
-- Go to System Preferences > Security & Privacy
-- Click "Allow Anyway" for chromedriver
-
-Alternatively, download manually from: https://chromedriver.chromium.org/
-
-### 3. Set up Python environment
+It is recommended to use a virtual environment:
 
 ```bash
-# Create virtual environment
-python3 -m venv venv
+# Create virtual environment with Python 3.13
+python3.13 -m venv venv
 
 # Activate virtual environment
 source venv/bin/activate
@@ -57,8 +38,6 @@ pip install selenium webdriver-manager mysql-connector-python python-dotenv
 
 ### Command Line Usage (for local development)
 
-Create a `.env` file in the project root (you can copy `.env.example`) and set the `DB_TYPE` to `sqlite`.
-
 You can pass one or more token numbers as command-line arguments:
 
 ```bash
@@ -66,9 +45,41 @@ You can pass one or more token numbers as command-line arguments:
 python pmc_complaint_checker_v2.py T60137 T60268
 ```
 
+### Using Docker for MySQL
+
+For a consistent development environment, you can use the provided `docker-compose.yml` to run a MySQL server in a Docker container.
+
+1.  **Install Docker and Docker Compose:**
+    Follow the official installation instructions for your operating system.
+
+2.  **Start the MySQL container:**
+    ```bash
+    docker-compose up -d
+    ```
+
+3.  **Configure your environment:**
+    The project includes a `.env` file configured to connect to the Dockerized MySQL database. No changes are needed if you are using the Docker setup.
+
+4.  **Stop the container:**
+    ```bash
+    docker-compose down
+    ```
+
 ### AWS Lambda Usage
 
-The script is designed to be deployed as an AWS Lambda function. The handler is `pmc_complaint_checker_v2.lambda_handler`.
+The script is designed to be deployed as an AWS Lambda function with a Python 3.13 runtime. The handler is `pmc_complaint_checker_v2.lambda_handler`.
+
+**Lambda Layer:**
+
+A Lambda layer is required to provide the necessary dependencies (`selenium`, `webdriver-manager`) and the `chromedriver` binary.
+
+To create the layer:
+1. A `lambda_layer` directory is provided with the necessary structure.
+2. Zip the contents of the `lambda_layer` directory:
+   ```bash
+   cd lambda_layer && zip -r ../lambda_layer.zip .
+   ```
+3. Upload `lambda_layer.zip` as a new Lambda layer in your AWS account.
 
 **Environment Variables:**
 
@@ -92,8 +103,7 @@ The Lambda function expects a JSON event with a `tokens` array:
 
 **Deployment Notes:**
 
-- You will need to package a headless browser (like Chromium) and its corresponding WebDriver in your Lambda deployment package or use a pre-existing Lambda Layer.
-- The script is configured to look for `chromedriver` in the root of the deployment package.
+- The script is configured to look for `chromedriver` in `/opt/bin/chromedriver`, which is where the Lambda layer will place it.
 - The SQLite database and JSON output are saved to the `/tmp` directory in the Lambda environment. This storage is ephemeral and will be lost after the function execution.
 
 ## Token Format
@@ -104,16 +114,13 @@ The Lambda function expects a JSON event with a `tokens` array:
 
 ## Output
 
-The script generates two output files:
-
-1. **pmc_complaints.db** - A SQLite database containing the structured complaint data.
-2. **pmc_complaint_statuses.json** - Complete detailed data in JSON format.
+The script generates a JSON file with detailed data:
 
 In a Lambda environment, these files are saved to the `/tmp` directory.
 
 ## Database Schema
 
-The database (`pmc_complaints.db` or MySQL) contains two tables:
+The database (`pmc_complaints` in MySQL) contains two tables:
 
 ### `complaints`
 
@@ -137,20 +144,9 @@ The database (`pmc_complaints.db` or MySQL) contains two tables:
 | `status` | `VARCHAR(255)` | The status at the time of the tracking action |
 | `remark` | `TEXT` | Any remarks associated with the tracking action |
 
-## For New Developers
 
-This project uses a repository pattern to interact with the database. The `repository.py` file contains the database logic, and the `SQLiteRepository` and `MySQLRepository` classes implement the repositories.
 
-If you need to change the database schema, you will need to:
 
-1.  Update the `create_tables` method in both `SQLiteRepository` and `MySQLRepository` in `repository.py`.
-2.  For SQLite, delete the existing `pmc_complaints.db` file. The script will automatically create a new one with the updated schema on its next run.
-
-To validate the database logic, you can run the tests in `test_database.py`:
-
-```bash
-python tests/test_database.py
-```
 
 ## Troubleshooting
 

@@ -1,4 +1,3 @@
-import sqlite3
 import json
 import os
 import mysql.connector
@@ -12,81 +11,6 @@ class Repository:
 
     def save_complaint(self, complaint_data):
         raise NotImplementedError
-
-class SQLiteRepository(Repository):
-    def __init__(self, db_file):
-        self.db_file = db_file
-        self.conn = None
-
-    def connect(self):
-        self.conn = sqlite3.connect(self.db_file)
-        self.create_tables()
-
-    def close(self):
-        if self.conn:
-            self.conn.close()
-
-    def create_tables(self):
-        queries = [
-            """
-            CREATE TABLE IF NOT EXISTS complaints (
-                token VARCHAR(255) PRIMARY KEY,
-                status VARCHAR(255),
-                description TEXT,
-                location TEXT,
-                complaint_type VARCHAR(255),
-                complaint_category VARCHAR(255),
-                expected_resolved_date VARCHAR(255)
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS tracking_history (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                token VARCHAR(255),
-                action_date VARCHAR(255),
-                status VARCHAR(255),
-                remark TEXT,
-                FOREIGN KEY (token) REFERENCES complaints (token)
-            )
-            """
-        ]
-        with self.conn:
-            for query in queries:
-                self.conn.execute(query)
-
-    def save_complaint(self, complaint_data):
-        token = complaint_data.get("token")
-        if not token:
-            return
-
-        with self.conn:
-            self.conn.execute(
-                """INSERT OR REPLACE INTO complaints 
-                   (token, status, description, location, complaint_type, complaint_category, expected_resolved_date)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    token,
-                    complaint_data.get("status"),
-                    complaint_data.get("token_details", {}).get("description"),
-                    complaint_data.get("token_details", {}).get("location"),
-                    complaint_data.get("token_details", {}).get("complaint_type"),
-                    complaint_data.get("complaint_track", {}).get("overall_info", {}).get("complaint_category"),
-                    complaint_data.get("complaint_track", {}).get("overall_info", {}).get("expected_resolved_date"),
-                ),
-            )
-
-            tracking_details = complaint_data.get("complaint_track", {}).get("tracking_details", [])
-            for record in tracking_details:
-                self.conn.execute(
-                    """INSERT INTO tracking_history (token, action_date, status, remark) 
-                       VALUES (?, ?, ?, ?)""",
-                    (
-                        token,
-                        record.get("action_date"),
-                        record.get("status"),
-                        record.get("remark"),
-                    ),
-                )
 
 class MySQLRepository(Repository):
     def __init__(self):
