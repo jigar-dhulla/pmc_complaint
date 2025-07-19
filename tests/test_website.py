@@ -8,7 +8,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
-from bs4 import BeautifulSoup
 import time
 
 
@@ -35,8 +34,6 @@ def test_website():
         time.sleep(3)
 
         # Get page source
-        soup = BeautifulSoup(driver.page_source, "html.parser")
-
         # Try to find all input fields
         print("\n=== All Input Fields ===")
         inputs = driver.find_elements(By.TAG_NAME, "input")
@@ -85,3 +82,4 @@ def test_website():
 
 if __name__ == "__main__":
     test_website()
+

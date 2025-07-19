@@ -12,10 +12,16 @@ All Python scripts and tests in this project must be run within the activated vi
 source venv/bin/activate
 ```
 
+**Required packages:**
+
+```bash
+pip install selenium webdriver-manager mysql-connector-python python-dotenv
+```
+
 **Example of running a script:**
 
 ```bash
-source venv/bin/activate && python3 pmc_complaint_checker_v2.py "T60137,T60268"
+source venv/bin/activate && python3 pmc_complaint_checker_v2.py T60137 T60268
 ```
 
 ## Running Tests
@@ -33,6 +39,16 @@ source venv/bin/activate && python3 tests/test_database.py
 ```bash
 source venv/bin/activate && python3 tests/test_website.py
 ```
+
+## Environment Variables
+
+This project uses a `.env` file for managing environment variables. You can copy the `.env.example` file to create your own `.env` file.
+
+- `DB_TYPE`: `sqlite` or `mysql`
+- `DB_HOST`: (for MySQL)
+- `DB_USER`: (for MySQL)
+- `DB_PASSWORD`: (for MySQL)
+- `DB_NAME`: (for MySQL)
 
 ## Developer Notes
 

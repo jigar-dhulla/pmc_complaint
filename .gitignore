@@ -2,3 +2,4 @@ venv/
 __pycache__/
 test_pmc_complaints.db
 pmc_complaints.db
+.env

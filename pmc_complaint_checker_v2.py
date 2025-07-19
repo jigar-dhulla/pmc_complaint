@@ -2,31 +2,36 @@
 """
 PMC Complaint Status Checker V2
 Improved version that handles AJAX loading and dynamic content
+AWS Lambda compatible.
 """
 
 import sys
 import time
 import json
+import os
+import argparse
 from datetime import datetime
 from selenium import webdriver
-from repository import SQLiteRepository
+from repository import SQLiteRepository, MySQLRepository
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from webdriver_manager.chrome import ChromeDriverManager
-from bs4 import BeautifulSoup
 
+# NOTE: For AWS Lambda, you'll need to package the chromedriver and a headless browser.
+# You can use a pre-existing Lambda Layer or package them yourself.
+# The following line assumes the chromedriver is in the same directory as the script.
+# You may need to adjust the path depending on your deployment package.
+# service = Service(executable_path="./chromedriver")
 
 def setup_driver():
     """
     Set up Chrome WebDriver with headless options for efficiency.
-    Uses webdriver-manager to automatically download and manage ChromeDriver.
     """
     chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Run in background
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
@@ -35,20 +40,16 @@ def setup_driver():
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
     
+    # For local development, you can use webdriver-manager.
+    # For Lambda, you'll need to specify the path to the chromedriver executable.
     try:
-        # webdriver-manager will automatically download the correct ChromeDriver version
+        from webdriver_manager.chrome import ChromeDriverManager
         service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-    except Exception as e:
-        print(f"Error setting up Chrome driver: {e}")
-        print("Please ensure Chrome is installed.")
-        print("If Chrome is installed but you still see errors, try:")
-        print("  - Installing Chrome: brew install --cask google-chrome")
-        print("  - Updating Chrome to the latest version")
-        sys.exit(1)
-    
-    return driver
+    except ImportError:
+        service = Service(executable_path="./chromedriver")
 
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    return driver
 
 def validate_token(token):
     """
@@ -56,27 +57,19 @@ def validate_token(token):
     """
     return token.startswith('T') and token[1:].isdigit() and len(token) > 1
 
-
 def extract_token_details_from_table(driver):
     """
     Extract details from the main token details table after submission.
     """
     details = {}
-    
     try:
-        # Wait for table with data to appear
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.XPATH, "//table[@id='calander-dataTables']//tbody[@id='table-data']/tr"))
         )
-        
-        # Get the first row of data from the table
         table_rows = driver.find_elements(By.XPATH, "//table[@id='calander-dataTables']//tbody[@id='table-data']/tr")
-        
         if table_rows and len(table_rows) > 0:
-            # Get the first row (should contain our token data)
             first_row = table_rows[0]
             cols = first_row.find_elements(By.TAG_NAME, "td")
-            
             if len(cols) >= 7:
                 details['sr_no'] = cols[0].text.strip()
                 details['token_no'] = cols[1].text.strip()
@@ -85,22 +78,17 @@ def extract_token_details_from_table(driver):
                 details['location'] = cols[4].text.strip()
                 details['complaint_type'] = cols[5].text.strip()
                 details['status'] = cols[6].text.strip()
-                
-                # Check if there's a track button
                 track_buttons = cols[7].find_elements(By.TAG_NAME, "button") if len(cols) > 7 else []
                 if track_buttons:
                     details['has_track_button'] = True
                     details['track_button_id'] = track_buttons[0].get_attribute('id')
                 else:
                     details['has_track_button'] = False
-    
     except TimeoutException:
         print("Timeout waiting for table data to load")
     except Exception as e:
         print(f"Error extracting token details from table: {e}")
-    
     return details
-
 
 def extract_track_details(driver, track_button_id):
     """
@@ -110,38 +98,26 @@ def extract_track_details(driver, track_button_id):
         'overall_info': {},
         'tracking_details': []
     }
-    
     try:
-        # Click the track button
         track_button = driver.find_element(By.ID, track_button_id)
         driver.execute_script("arguments[0].click();", track_button)
-        
-        # Wait for modal to appear
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "modalComplaintTrack"))
         )
-        time.sleep(2)  # Allow modal to fully load
-        
-        # Extract overall info from modal
+        time.sleep(2)
         token_elem = driver.find_element(By.ID, "track_tokenNo")
         if token_elem:
             track_info['overall_info']['token_no'] = token_elem.text.strip()
-        
         status_elem = driver.find_element(By.ID, "track_status")
         if status_elem:
             track_info['overall_info']['status'] = status_elem.text.strip()
-        
         category_elem = driver.find_element(By.ID, "track_complaintcategory")
         if category_elem:
             track_info['overall_info']['complaint_category'] = category_elem.text.strip()
-        
         expected_date_elem = driver.find_element(By.ID, "track_expected_date")
         if expected_date_elem:
             track_info['overall_info']['expected_resolved_date'] = expected_date_elem.text.strip()
-        
-        # Extract tracking details from table
         track_rows = driver.find_elements(By.XPATH, "//tbody[@id='track']/tr")
-        
         for row in track_rows:
             cols = row.find_elements(By.TAG_NAME, "td")
             if len(cols) >= 11:
@@ -160,14 +136,11 @@ def extract_track_details(driver, track_button_id):
                     'current_action': cols[11].text.strip() if len(cols) > 11 else ''
                 }
                 track_info['tracking_details'].append(track_detail)
-    
     except TimeoutException:
         print("Timeout waiting for track modal to load")
     except Exception as e:
         print(f"Error extracting track details: {e}")
-    
     return track_info
-
 
 def process_token(driver, token):
     """
@@ -181,64 +154,42 @@ def process_token(driver, token):
         'token_details': {},
         'complaint_track': {}
     }
-    
     try:
-        # Navigate to the website
         driver.get(url)
-        time.sleep(2)  # Allow page to load
-        
-        # Find and fill the token input field
+        time.sleep(2)
         try:
             search_box = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.ID, "tokenNo"))
             )
             search_box.clear()
             search_box.send_keys(token)
-            
-            # Find and click the search button
             search_button = driver.find_element(By.ID, "btnSearch")
             search_button.click()
-            
-            # Wait for results
             time.sleep(3)
-            
-            # Check if any data is loaded in the table
             token_details = extract_token_details_from_table(driver)
-            
             if token_details:
                 result['token_details'] = token_details
                 result['status'] = token_details.get('status', 'Unknown')
-                
-                # If there's a track button, click it to get more details
                 if token_details.get('has_track_button') and token_details.get('track_button_id'):
                     track_info = extract_track_details(driver, token_details['track_button_id'])
                     if track_info:
                         result['complaint_track'] = track_info
             else:
-                # Check if there's an error message or no data
                 try:
-                    # Check if table is empty
                     table_body = driver.find_element(By.ID, "table-data")
                     if not table_body.text.strip():
                         result['error'] = 'No data found for this token'
                 except:
                     result['error'] = 'Could not find any data for this token'
-        
         except TimeoutException:
             result['error'] = 'Timeout waiting for page elements'
         except NoSuchElementException as e:
             result['error'] = f'Element not found: {str(e)}'
         except Exception as e:
             result['error'] = f'Error processing token: {str(e)}'
-    
     except Exception as e:
         result['error'] = f'Failed to load website: {str(e)}'
-    
     return result
-
-
-
-
 
 def print_results(result):
     """
@@ -247,108 +198,100 @@ def print_results(result):
     print(f"\n{'='*60}")
     print(f"Token: {result['token']}")
     print(f"Status: {result.get('status', 'Failed')}")
-    
     if result.get('error'):
         print(f"Error: {result['error']}")
-    
     if result.get('token_details'):
         print("\nToken Details:")
         for key, value in result['token_details'].items():
             if key not in ['has_track_button', 'track_button_id', 'sr_no']:
                 print(f"  {key}: {value}")
-    
     if result.get('complaint_track') and result['complaint_track'].get('overall_info'):
         print("\nComplaint Overview:")
         for key, value in result['complaint_track']['overall_info'].items():
             print(f"  {key}: {value}")
-    
     if result.get('complaint_track') and result['complaint_track'].get('tracking_details'):
         print("\nTracking History:")
         for detail in result['complaint_track']['tracking_details']:
             print(f"  - {detail.get('action_date', 'N/A')}: {detail.get('status', 'N/A')} - {detail.get('advice', 'N/A')}")
 
-
-def main():
+def lambda_handler(event, context):
     """
-    Main function to execute the script.
+    AWS Lambda handler function.
     """
-    print("PMC Complaint Status Checker V2")
+    print("PMC Complaint Status Checker V2 - Lambda")
     print("="*60)
-    
-    # Get token input
-    if len(sys.argv) > 1:
-        # Command line argument provided
-        token_input = sys.argv[1]
-    else:
-        # Prompt user for input
-        print("Enter token numbers (comma-separated, e.g., T60137,T12345,T67890):")
-        token_input = input().strip()
-    
-    if not token_input:
-        print("No tokens provided. Exiting.")
-        return
-    
-    # Parse and validate tokens
-    tokens = [token.strip() for token in token_input.split(',')]
-    valid_tokens = []
-    
-    for token in tokens:
-        if validate_token(token):
-            valid_tokens.append(token)
-        else:
-            print(f"Invalid token format: {token} (must start with 'T' followed by digits)")
-    
+
+    # Get token input from event
+    tokens = event.get('tokens', [])
+    if not tokens:
+        return {
+            'statusCode': 400,
+            'body': json.dumps('No tokens provided.')
+        }
+
+    valid_tokens = [token for token in tokens if validate_token(token)]
     if not valid_tokens:
-        print("No valid tokens to process. Exiting.")
-        return
-    
+        return {
+            'statusCode': 400,
+            'body': json.dumps('No valid tokens to process.')
+        }
+
     print(f"\nProcessing {len(valid_tokens)} token(s)...")
-    
-    # Set up driver
     driver = setup_driver()
     results = []
-    
     try:
-        # Process each token
         for i, token in enumerate(valid_tokens, 1):
             print(f"\n[{i}/{len(valid_tokens)}] Processing token: {token}")
-            
             result = process_token(driver, token)
             results.append(result)
-            
-            # Print results immediately
             print_results(result)
-            
-            # Add delay between requests (except for last one)
             if i < len(valid_tokens):
                 print("\nWaiting before next request...")
                 time.sleep(3)
-        
-        # Also save as JSON for more detailed data
-        json_filename = 'pmc_complaint_statuses.json'
+
+        # In Lambda, save to /tmp directory
+        json_filename = '/tmp/pmc_complaint_statuses.json'
         with open(json_filename, 'w', encoding='utf-8') as jsonfile:
             json.dump(results, jsonfile, indent=2, ensure_ascii=False)
         print(f"Detailed results also saved to {json_filename}")
 
-        # Save to database
-        repo = SQLiteRepository('pmc_complaints.db')
+        db_type = os.environ.get("DB_TYPE", "sqlite")
+        if db_type == "mysql":
+            repo = MySQLRepository()
+            print("Using MySQL database")
+        else:
+            db_path = '/tmp/pmc_complaints.db'
+            repo = SQLiteRepository(db_path)
+            print(f"Using SQLite database at {db_path}")
+
         repo.connect()
         for result in results:
             repo.save_complaint(result)
         repo.close()
-        print("Results saved to the database.")
-    
-    except KeyboardInterrupt:
-        print("\n\nInterrupted by user. Exiting.")
-    
+        print(f"Results saved to the database.")
+
+        return {
+            'statusCode': 200,
+            'body': json.dumps(results)
+        }
+
     except Exception as e:
         print(f"\nUnexpected error: {e}")
-    
+        return {
+            'statusCode': 500,
+            'body': json.dumps(f'An error occurred: {e}')
+        }
     finally:
-        # Clean up
         driver.quit()
         print("\nProcessing complete.")
 
-
 if __name__ == "__main__":
-    main()
+    # For local testing, accept tokens from the command line
+    parser = argparse.ArgumentParser(description="PMC Complaint Status Checker")
+    parser.add_argument('tokens', nargs='+', help="One or more token numbers to check (e.g., T60137 T60268)")
+    args = parser.parse_args()
+
+    test_event = {
+        "tokens": args.tokens
+    }
+    lambda_handler(test_event, None)

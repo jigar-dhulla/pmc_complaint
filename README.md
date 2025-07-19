@@ -4,18 +4,19 @@ This Python script automates checking the status of multiple PMC (Pune Municipal
 
 ## Features
 
-- Automated web scraping using Selenium and BeautifulSoup
+- Automated web scraping using Selenium
 - Supports multiple token numbers in a single run
 - Runs in headless mode (no browser window)
-- Saves results to a SQLite database and JSON file
+- Saves results to a SQLite or MySQL database and a JSON file
 - Comprehensive error handling
 - Detailed status tracking and history
+- AWS Lambda compatible
 
 ## Prerequisites
 
 1. **Python 3.x** installed
-2. **Google Chrome** browser installed
-3. **ChromeDriver** installed
+2. **Google Chrome** browser installed (for local development)
+3. **ChromeDriver** installed (for local development)
 
 ## Installation
 
@@ -49,38 +50,56 @@ python3 -m venv venv
 source venv/bin/activate
 
 # Install required packages
-pip install selenium beautifulsoup4 webdriver-manager
+pip install selenium webdriver-manager mysql-connector-python python-dotenv
 ```
 
 ## Usage
 
-### Command Line Usage
+### Command Line Usage (for local development)
+
+Create a `.env` file in the project root (you can copy `.env.example`) and set the `DB_TYPE` to `sqlite`.
+
+You can pass one or more token numbers as command-line arguments:
 
 ```bash
 # With virtual environment activated
-python pmc_complaint_checker_v2.py "T60137,T60268"
-
-# Or make it executable
-./pmc_complaint_checker_v2.py "T60137,T60268"
+python pmc_complaint_checker_v2.py T60137 T60268
 ```
 
-### Interactive Usage
+### AWS Lambda Usage
 
-If you run the script without arguments, it will prompt you for token numbers:
+The script is designed to be deployed as an AWS Lambda function. The handler is `pmc_complaint_checker_v2.lambda_handler`.
 
-```bash
-python pmc_complaint_checker_v2.py
+**Environment Variables:**
+
+Set the following environment variables in your Lambda function configuration:
+
+- `DB_TYPE`: `mysql`
+- `DB_HOST`: Your MySQL database host
+- `DB_USER`: Your MySQL database username
+- `DB_PASSWORD`: Your MySQL database password
+- `DB_NAME`: Your MySQL database name
+
+**Event Payload:**
+
+The Lambda function expects a JSON event with a `tokens` array:
+
+```json
+{
+  "tokens": ["T60137", "T60268"]
+}
 ```
 
-Then enter tokens when prompted:
-```
-Enter token numbers (comma-separated, e.g., T60137,T12345,T67890): T60137,T12345
-```
+**Deployment Notes:**
+
+- You will need to package a headless browser (like Chromium) and its corresponding WebDriver in your Lambda deployment package or use a pre-existing Lambda Layer.
+- The script is configured to look for `chromedriver` in the root of the deployment package.
+- The SQLite database and JSON output are saved to the `/tmp` directory in the Lambda environment. This storage is ephemeral and will be lost after the function execution.
 
 ## Token Format
 
 - Tokens must start with 'T' followed by digits (e.g., T60137)
-- Multiple tokens should be comma-separated
+- Multiple tokens should be comma-separated (for local development) or in a JSON array (for Lambda)
 - Invalid tokens will be skipped with a warning
 
 ## Output
@@ -90,45 +109,47 @@ The script generates two output files:
 1. **pmc_complaints.db** - A SQLite database containing the structured complaint data.
 2. **pmc_complaint_statuses.json** - Complete detailed data in JSON format.
 
+In a Lambda environment, these files are saved to the `/tmp` directory.
+
 ## Database Schema
 
-The database (`pmc_complaints.db`) contains two tables:
+The database (`pmc_complaints.db` or MySQL) contains two tables:
 
 ### `complaints`
 
 | Column | Type | Description |
 |---|---|---|
-| `token` | `TEXT` | The complaint token number (Primary Key) |
-| `status` | `TEXT` | The current status of the complaint |
+| `token` | `VARCHAR(255)` | The complaint token number (Primary Key) |
+| `status` | `VARCHAR(255)` | The current status of the complaint |
 | `description` | `TEXT` | The complaint description |
 | `location` | `TEXT` | The location of the complaint |
-| `complaint_type` | `TEXT` | The type of complaint |
-| `complaint_category` | `TEXT` | The category of the complaint |
-| `expected_resolved_date` | `TEXT` | The expected resolution date |
+| `complaint_type` | `VARCHAR(255)` | The type of complaint |
+| `complaint_category` | `VARCHAR(255)` | The category of the complaint |
+| `expected_resolved_date` | `VARCHAR(255)` | The expected resolution date |
 
 ### `tracking_history`
 
 | Column | Type | Description |
 |---|---|---|
-| `id` | `INTEGER` | The unique ID of the tracking record (Primary Key) |
-| `token` | `TEXT` | The complaint token number (Foreign Key to `complaints.token`) |
-| `action_date` | `TEXT` | The date of the tracking action |
-| `status` | `TEXT` | The status at the time of the tracking action |
+| `id` | `INT` | The unique ID of the tracking record (Primary Key) |
+| `token` | `VARCHAR(255)` | The complaint token number (Foreign Key to `complaints.token`) |
+| `action_date` | `VARCHAR(255)` | The date of the tracking action |
+| `status` | `VARCHAR(255)` | The status at the time of the tracking action |
 | `remark` | `TEXT` | Any remarks associated with the tracking action |
 
 ## For New Developers
 
-This project uses a repository pattern to interact with the database. The `repository.py` file contains the database logic, and the `SQLiteRepository` class implements the repository for SQLite.
+This project uses a repository pattern to interact with the database. The `repository.py` file contains the database logic, and the `SQLiteRepository` and `MySQLRepository` classes implement the repositories.
 
 If you need to change the database schema, you will need to:
 
-1.  Update the `create_tables` method in `repository.py`.
-2.  Delete the existing `pmc_complaints.db` file. The script will automatically create a new one with the updated schema on its next run.
+1.  Update the `create_tables` method in both `SQLiteRepository` and `MySQLRepository` in `repository.py`.
+2.  For SQLite, delete the existing `pmc_complaints.db` file. The script will automatically create a new one with the updated schema on its next run.
 
 To validate the database logic, you can run the tests in `test_database.py`:
 
 ```bash
-python test_database.py
+python tests/test_database.py
 ```
 
 ## Troubleshooting
