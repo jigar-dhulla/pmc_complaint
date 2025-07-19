@@ -6,10 +6,10 @@ Improved version that handles AJAX loading and dynamic content
 
 import sys
 import time
-import csv
 import json
 from datetime import datetime
 from selenium import webdriver
+from repository import SQLiteRepository
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -237,49 +237,7 @@ def process_token(driver, token):
     return result
 
 
-def save_to_csv(results):
-    """
-    Save results to CSV file with detailed columns.
-    """
-    filename = 'pmc_complaint_statuses.csv'
-    
-    with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-        fieldnames = [
-            'token', 'overall_status', 'date', 'description', 'location',
-            'complaint_type', 'complaint_category', 'expected_resolved_date',
-            'latest_action_date', 'latest_advice', 'latest_remark', 'error'
-        ]
-        
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        
-        for result in results:
-            row = {
-                'token': result['token'],
-                'overall_status': result.get('status', 'Failed'),
-                'date': result['token_details'].get('date', ''),
-                'description': result['token_details'].get('description', ''),
-                'location': result['token_details'].get('location', ''),
-                'complaint_type': result['token_details'].get('complaint_type', ''),
-                'complaint_category': result['complaint_track'].get('overall_info', {}).get('complaint_category', ''),
-                'expected_resolved_date': result['complaint_track'].get('overall_info', {}).get('expected_resolved_date', ''),
-                'latest_action_date': '',
-                'latest_advice': '',
-                'latest_remark': '',
-                'error': result.get('error', '')
-            }
-            
-            # Get latest tracking details if available
-            tracking_details = result.get('complaint_track', {}).get('tracking_details', [])
-            if tracking_details:
-                latest = tracking_details[-1]
-                row['latest_action_date'] = latest.get('action_date', '')
-                row['latest_advice'] = latest.get('advice', '')
-                row['latest_remark'] = latest.get('remark', '')
-            
-            writer.writerow(row)
-    
-    print(f"\nResults saved to {filename}")
+
 
 
 def print_results(result):
@@ -366,20 +324,22 @@ def main():
                 print("\nWaiting before next request...")
                 time.sleep(3)
         
-        # Save all results to CSV
-        if results:
-            save_to_csv(results)
-            
-            # Also save as JSON for more detailed data
-            json_filename = 'pmc_complaint_statuses.json'
-            with open(json_filename, 'w', encoding='utf-8') as jsonfile:
-                json.dump(results, jsonfile, indent=2, ensure_ascii=False)
-            print(f"Detailed results also saved to {json_filename}")
+        # Also save as JSON for more detailed data
+        json_filename = 'pmc_complaint_statuses.json'
+        with open(json_filename, 'w', encoding='utf-8') as jsonfile:
+            json.dump(results, jsonfile, indent=2, ensure_ascii=False)
+        print(f"Detailed results also saved to {json_filename}")
+
+        # Save to database
+        repo = SQLiteRepository('pmc_complaints.db')
+        repo.connect()
+        for result in results:
+            repo.save_complaint(result)
+        repo.close()
+        print("Results saved to the database.")
     
     except KeyboardInterrupt:
-        print("\n\nInterrupted by user. Saving partial results...")
-        if results:
-            save_to_csv(results)
+        print("\n\nInterrupted by user. Exiting.")
     
     except Exception as e:
         print(f"\nUnexpected error: {e}")

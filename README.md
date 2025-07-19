@@ -7,7 +7,7 @@ This Python script automates checking the status of multiple PMC (Pune Municipal
 - Automated web scraping using Selenium and BeautifulSoup
 - Supports multiple token numbers in a single run
 - Runs in headless mode (no browser window)
-- Saves results to CSV and JSON formats
+- Saves results to a SQLite database and JSON file
 - Comprehensive error handling
 - Detailed status tracking and history
 
@@ -49,7 +49,7 @@ python3 -m venv venv
 source venv/bin/activate
 
 # Install required packages
-pip install selenium beautifulsoup4
+pip install selenium beautifulsoup4 webdriver-manager
 ```
 
 ## Usage
@@ -87,21 +87,49 @@ Enter token numbers (comma-separated, e.g., T60137,T12345,T67890): T60137,T12345
 
 The script generates two output files:
 
-1. **pmc_complaint_statuses.csv** - Summary data in CSV format with columns:
-   - token
-   - overall_status
-   - date
-   - from_user
-   - description
-   - assigned_to
-   - category
-   - complaint_category
-   - expected_resolved_date
-   - latest_action_date
-   - latest_advice
-   - error (if any)
+1. **pmc_complaints.db** - A SQLite database containing the structured complaint data.
+2. **pmc_complaint_statuses.json** - Complete detailed data in JSON format.
 
-2. **pmc_complaint_statuses.json** - Complete detailed data in JSON format
+## Database Schema
+
+The database (`pmc_complaints.db`) contains two tables:
+
+### `complaints`
+
+| Column | Type | Description |
+|---|---|---|
+| `token` | `TEXT` | The complaint token number (Primary Key) |
+| `status` | `TEXT` | The current status of the complaint |
+| `description` | `TEXT` | The complaint description |
+| `location` | `TEXT` | The location of the complaint |
+| `complaint_type` | `TEXT` | The type of complaint |
+| `complaint_category` | `TEXT` | The category of the complaint |
+| `expected_resolved_date` | `TEXT` | The expected resolution date |
+
+### `tracking_history`
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | `INTEGER` | The unique ID of the tracking record (Primary Key) |
+| `token` | `TEXT` | The complaint token number (Foreign Key to `complaints.token`) |
+| `action_date` | `TEXT` | The date of the tracking action |
+| `status` | `TEXT` | The status at the time of the tracking action |
+| `remark` | `TEXT` | Any remarks associated with the tracking action |
+
+## For New Developers
+
+This project uses a repository pattern to interact with the database. The `repository.py` file contains the database logic, and the `SQLiteRepository` class implements the repository for SQLite.
+
+If you need to change the database schema, you will need to:
+
+1.  Update the `create_tables` method in `repository.py`.
+2.  Delete the existing `pmc_complaints.db` file. The script will automatically create a new one with the updated schema on its next run.
+
+To validate the database logic, you can run the tests in `test_database.py`:
+
+```bash
+python test_database.py
+```
 
 ## Troubleshooting
 
@@ -182,7 +210,7 @@ Complaint Overview:
 Tracking History:
   - 10-07-2023: Forwarded - Auto Generated
 
-Results saved to pmc_complaint_statuses.csv
+Results saved to pmc_complaints.db
 Detailed results also saved to pmc_complaint_statuses.json
 
 Processing complete.
