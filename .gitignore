@@ -5,3 +5,4 @@ pmc_complaints.db
 .env
 lambda_layer/
 lambda_layer.zip
+*.json
