@@ -10,6 +10,7 @@ import time
 import json
 import os
 import argparse
+import subprocess
 from datetime import datetime
 from dotenv import load_dotenv
 from selenium import webdriver
@@ -22,12 +23,31 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 
+def run_command(command):
+    """Helper function to run a shell command and return its output for debugging."""
+    try:
+        print(f"RUNNING COMMAND: {' '.join(command)}")
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,  # Don't raise exception on non-zero exit
+        )
+        print(f"STDOUT:\n{result.stdout.strip()}")
+        if result.stderr:
+            print(f"STDERR:\n{result.stderr.strip()}")
+    except FileNotFoundError:
+        print(f"Command not found: {command[0]}")
+    except Exception as e:
+        print(f"Error running command {' '.join(command)}: {e}")
+
+
 def setup_driver():
     """
     Set up Chrome WebDriver with headless options for efficiency.
     """
     print("--- Starting driver setup ---")
-    
+
     chrome_options = Options()
     print("Setting Chrome options...")
     # These are the crucial flags for running in a constrained, headless environment like Lambda
@@ -37,9 +57,17 @@ def setup_driver():
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--disable-sync")
+    chrome_options.add_argument(
+        "--disable-dev-tools"
+    )  # Recommended for server environments
+    chrome_options.add_argument(
+        "--no-zygote"
+    )  # Helps in environments with limited process creation
     chrome_options.add_argument("--single-process")
     chrome_options.add_argument("--window-size=1920x1080")
-    chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36")
+    chrome_options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
+    )
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     # Writable directories for Chrome
     chrome_options.add_argument("--user-data-dir=/tmp/user-data")
@@ -51,27 +79,31 @@ def setup_driver():
     chrome_options.add_experimental_option("useAutomationExtension", False)
     print("Chrome options set.")
 
-    service = None
-    if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
-        print("Running in Lambda environment.")
-        chrome_options.binary_location = "/opt/bin/chromium"
-        chromedriver_path = "/opt/bin/chromedriver"
-        print(f"Chromedriver path: {chromedriver_path}")
-        print(f"Headless chromium path: {chrome_options.binary_location}")
-        
-        # Service arguments to force IPv4 and provide verbose logging
-        service = Service(
-            executable_path=chromedriver_path,
-            service_args=['--log-path=/tmp/chromedriver.log', '--verbose', '--whitelisted-ips=']
-        )
-        print("Service object created.")
-    else:
-        # Local development with hard-coded path
-        print("Running in local environment.")
-        service = Service(
-            executable_path="venv/lib/python3.13/site-packages/chromedriver_binary/chromedriver"
-        )
-        print("Service object created for local.")
+    # --- START: Enhanced debugging block ---
+    # This block helps diagnose "Unable to obtain driver" errors by inspecting the environment.
+    # Once the issue is resolved, this can be removed for cleaner production logs.
+    print("\n--- Environment Sanity Check ---")
+    print("1. Checking PATH environment variable...")
+    run_command(["sh", "-c", "echo $PATH"])
+
+    print("\n2. Checking for 'chromedriver' in PATH...")
+    run_command(["which", "chromedriver"])
+
+    print("\n3. Checking for 'google-chrome' in PATH...")
+    run_command(["which", "google-chrome"])
+
+    print("\n4. Checking permissions and symlink details in /usr/bin...")
+    run_command(["ls", "-l", "/usr/bin/chromedriver", "/usr/bin/google-chrome"])
+
+    print("\n5. Checking contents and permissions of /opt directory...")
+    run_command(["ls", "-lR", "/opt"])
+    print("--- End Environment Sanity Check ---\n")
+    # --- END: Enhanced debugging block ---
+
+    # With binaries symlinked to /usr/bin in the Dockerfile, Selenium's
+    # Service() can find them automatically without an explicit path.
+    service = Service()
+    print("Service object created.")
 
     print("Attempting to start webdriver.Chrome...")
     try:
@@ -80,9 +112,11 @@ def setup_driver():
         return driver
     except Exception as e:
         print("!!! FAILED to start webdriver.Chrome !!!")
+        print(f"Error Type: {type(e).__name__}")
+        print(f"Error Message: {e}")
         # Try to read the chromedriver log if it exists
         try:
-            with open('/tmp/chromedriver.log', 'r') as f:
+            with open("/tmp/chromedriver.log", "r") as f:
                 print("--- Chromedriver Log ---")
                 print(f.read())
                 print("------------------------")

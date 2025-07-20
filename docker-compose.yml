@@ -1,17 +1,39 @@
-version: '3.8'
-
 services:
   mysql:
     image: mysql:8.0
     container_name: pmc_mysql
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: pmc_complaints
+    env_file:
+      - .env
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    environment:
+      - MYSQL_DATABASE=pmc_complaints
+      - MYSQL_ROOT_PASSWORD=rootpassword
+
+  lambda-app:
+    # The name of the service
+    container_name: pmc-token-checker-local
+
+    # Build the image from the Dockerfile in the current directory
+    build: .
+
+    # Load environment variables from the .env file
+    env_file:
+      - .env
+
+    # Map port 9000 on your local machine to port 8080 inside the container.
+    # The AWS Lambda Runtime Interface Emulator (RIE) listens on port 8080.
+    ports:
+      - "9000:8080"
+    
+    # Wait for the mysql service to be 'healthy' before starting this service
+    # depends_on:
+    #   mysql:
+    #     condition: service_healthy
+
+
 
 volumes:
   mysql_data:

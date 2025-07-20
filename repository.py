@@ -2,6 +2,7 @@ import json
 import os
 import mysql.connector
 
+
 class Repository:
     def connect(self):
         raise NotImplementedError
@@ -11,6 +12,7 @@ class Repository:
 
     def save_complaint(self, complaint_data):
         raise NotImplementedError
+
 
 class MySQLRepository(Repository):
     def __init__(self):
@@ -51,7 +53,7 @@ class MySQLRepository(Repository):
                 remark TEXT,
                 FOREIGN KEY (token) REFERENCES complaints (token)
             )
-            """
+            """,
         ]
         with self.conn.cursor() as cursor:
             for query in queries:
@@ -76,16 +78,22 @@ class MySQLRepository(Repository):
                     complaint_data.get("token_details", {}).get("description"),
                     complaint_data.get("token_details", {}).get("location"),
                     complaint_data.get("token_details", {}).get("complaint_type"),
-                    complaint_data.get("complaint_track", {}).get("overall_info", {}).get("complaint_category"),
-                    complaint_data.get("complaint_track", {}).get("overall_info", {}).get("expected_resolved_date"),
+                    complaint_data.get("complaint_track", {})
+                    .get("overall_info", {})
+                    .get("complaint_category"),
+                    complaint_data.get("complaint_track", {})
+                    .get("overall_info", {})
+                    .get("expected_resolved_date"),
                 ),
             )
 
-            tracking_details = complaint_data.get("complaint_track", {}).get("tracking_details", [])
+            tracking_details = complaint_data.get("complaint_track", {}).get(
+                "tracking_details", []
+            )
             for record in tracking_details:
                 cursor.execute(
-                    """INSERT INTO tracking_history (token, action_date, status, remark) 
-                       VALUES (%s, %s, %s, %s)""",
+                    """INSERT IGNORE INTO tracking_history (token, action_date, status, remark) 
+                       VALUES (%s, %s, %s, %s)""",  # Use INSERT IGNORE to prevent duplicates
                     (
                         token,
                         record.get("action_date"),
