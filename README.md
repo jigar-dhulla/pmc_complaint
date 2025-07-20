@@ -69,17 +69,9 @@ For a consistent development environment, you can use the provided `docker-compo
 
 The script is designed to be deployed as an AWS Lambda function with a Python 3.13 runtime. The handler is `pmc_complaint_checker_v2.lambda_handler`.
 
-**Lambda Layer:**
+**Build Script:**
 
-A Lambda layer is required to provide the necessary dependencies (`selenium`, `webdriver-manager`) and the `chromedriver` binary.
-
-To create the layer:
-1. A `lambda_layer` directory is provided with the necessary structure.
-2. Zip the contents of the `lambda_layer` directory:
-   ```bash
-   cd lambda_layer && zip -r ../lambda_layer.zip .
-   ```
-3. Upload `lambda_layer.zip` as a new Lambda layer in your AWS account.
+The `scripts/build.sh` script prepares a `lambda_function.zip` file for deployment. This zip file contains the application code and its Python dependencies.
 
 **Environment Variables:**
 
@@ -100,11 +92,6 @@ The Lambda function expects a JSON event with a `tokens` array:
   "tokens": ["T60137", "T60268"]
 }
 ```
-
-**Deployment Notes:**
-
-- The script is configured to look for `chromedriver` in `/opt/bin/chromedriver`, which is where the Lambda layer will place it.
-- The SQLite database and JSON output are saved to the `/tmp` directory in the Lambda environment. This storage is ephemeral and will be lost after the function execution.
 
 ## Token Format
 
@@ -241,6 +228,12 @@ Processing complete.
 - All dates and times are preserved as they appear on the website
 - Only valid tokens that exist in the PMC system will return results
 - The V2 script can extract detailed tracking history by clicking the track button automatically
+
+## TODO
+- Make this script working on aws lambda.
+  - to make it work on lambda, we need lambda environment on local so that we can troubleshoot quickly
+- create eventbridge rule to run the lambda periodically
+
 
 ## License
 

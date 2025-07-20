@@ -26,28 +26,69 @@ def setup_driver():
     """
     Set up Chrome WebDriver with headless options for efficiency.
     """
+    print("--- Starting driver setup ---")
+    
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
+    print("Setting Chrome options...")
+    # These are the crucial flags for running in a constrained, headless environment like Lambda
+    chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-sync")
+    chrome_options.add_argument("--single-process")
     chrome_options.add_argument("--window-size=1920x1080")
+    chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    # Writable directories for Chrome
+    chrome_options.add_argument("--user-data-dir=/tmp/user-data")
+    chrome_options.add_argument("--data-path=/tmp/data-path")
+    chrome_options.add_argument("--disk-cache-dir=/tmp/cache-dir")
+    chrome_options.add_argument("--homedir=/tmp")
+
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
+    print("Chrome options set.")
 
+    service = None
     if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
-        service = Service(executable_path="/opt/bin/chromedriver")
+        print("Running in Lambda environment.")
+        chrome_options.binary_location = "/opt/bin/chromium"
+        chromedriver_path = "/opt/bin/chromedriver"
+        print(f"Chromedriver path: {chromedriver_path}")
+        print(f"Headless chromium path: {chrome_options.binary_location}")
+        
+        # Service arguments to force IPv4 and provide verbose logging
+        service = Service(
+            executable_path=chromedriver_path,
+            service_args=['--log-path=/tmp/chromedriver.log', '--verbose', '--whitelisted-ips=']
+        )
+        print("Service object created.")
     else:
+        # Local development with hard-coded path
+        print("Running in local environment.")
+        service = Service(
+            executable_path="venv/lib/python3.13/site-packages/chromedriver_binary/chromedriver"
+        )
+        print("Service object created for local.")
+
+    print("Attempting to start webdriver.Chrome...")
+    try:
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        print("webdriver.Chrome started successfully.")
+        return driver
+    except Exception as e:
+        print("!!! FAILED to start webdriver.Chrome !!!")
+        # Try to read the chromedriver log if it exists
         try:
-            from webdriver_manager.chrome import ChromeDriverManager
-
-            service = Service(ChromeDriverManager().install())
-        except ImportError:
-            service = Service(executable_path="./chromedriver")
-
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-    return driver
+            with open('/tmp/chromedriver.log', 'r') as f:
+                print("--- Chromedriver Log ---")
+                print(f.read())
+                print("------------------------")
+        except Exception as log_e:
+            print(f"Could not read chromedriver log: {log_e}")
+        raise e
 
 
 def validate_token(token):
