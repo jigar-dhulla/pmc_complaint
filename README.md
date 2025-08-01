@@ -137,39 +137,13 @@ The database (`pmc_complaints` in MySQL) contains two tables:
 
 ## Troubleshooting
 
-### ChromeDriver Issues
+The script now uses `webdriver-manager` to automatically handle ChromeDriver installation and updates. This should resolve most driver-related issues on local development environments.
 
-If you get an error about ChromeDriver:
+If you encounter any problems, please ensure:
+- You have a working internet connection when running the script for the first time, so it can download the correct driver.
+- Google Chrome is installed on your system. `webdriver-manager` uses the installed browser version to download the matching driver.
 
-1. Check if ChromeDriver is installed:
-   ```bash
-   which chromedriver
-   ```
-
-2. Verify Chrome and ChromeDriver versions match:
-   ```bash
-   # Check Chrome version
-   /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --version
-   
-   # Check ChromeDriver version
-   chromedriver --version
-   ```
-
-3. If versions don't match, update ChromeDriver:
-   ```bash
-   brew upgrade --cask chromedriver
-   ```
-
-### Permission Issues on macOS
-
-If you see "chromedriver cannot be opened because it is from an unidentified developer":
-
-1. Open System Preferences > Security & Privacy
-2. Click "Allow Anyway" next to the chromedriver message
-3. Or run in terminal:
-   ```bash
-   xattr -d com.apple.quarantine /opt/homebrew/bin/chromedriver
-   ```
+For persistent issues, you can try clearing the `webdriver-manager` cache by deleting the `~/.wdm` directory on your system.
 
 ### Website Changes
 

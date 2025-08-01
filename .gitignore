@@ -6,3 +6,4 @@ pmc_complaints.db
 lambda_layer/
 lambda_layer.zip
 *.json
+lambda_function.zip

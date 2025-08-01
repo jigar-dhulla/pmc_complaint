@@ -4,33 +4,47 @@ FROM public.ecr.aws/lambda/python:3.13
 # Switch to root user to install system dependencies
 USER root
 
-# Use a build-time cache mount to provide a writable directory for the package manager.
-# This is the modern, efficient way to handle package installation in constrained base images.
-RUN dnf swap -y curl-minimal curl && \
-    # Install all other required packages for headless Chrome.
-    dnf install -y alsa-lib atk at-spi2-atk cups-libs dbus-libs expat fontconfig freetype glib2 gdk-pixbuf2 gtk3 liberation-sans-fonts libgcc libjpeg-turbo libpng libX11 libX11-xcb libxcb libXcomposite libXcursor libXdamage libXext libXfixes libXi libXrandr libXrender libXtst nspr nss pango pipewire-libs xorg-x11-fonts-75dpi xorg-x11-fonts-misc zlib jq unzip && \
-    # Final cleanup to keep the image small.
-    dnf clean all
+# Install core tools like jq and unzip first
+RUN dnf install -y jq unzip which && dnf clean all
+
+# Install required packages for headless Chrome and other tools
+# RUN dnf install -y mesa-libGL-devel mesa-libEGL-devel libxcb-devel libxkbcommon-devel libXcomposite libXdamage libxkbcommon-x11-devel xorg-x11-server-Xvfb pango-devel libXScrnSaver-devel alsa-lib-devel cups-devel libxshmfence-devel nss-devel at-spi2-atk-devel liberation-sans-fonts wget nss fontconfig libXrender libXtst libXi libXrandr libjpeg-turbo libpng && dnf clean all
+
+RUN dnf install -y \
+    mesa-libGL-devel mesa-libEGL-devel libxcb-devel \
+    libxkbcommon-devel libxkbcommon-x11-devel xorg-x11-server-Xvfb \
+    pango-devel libXScrnSaver-devel alsa-lib-devel cups-devel \
+    libxshmfence-devel nss-devel at-spi2-atk-devel \
+    liberation-sans-fonts wget nss fontconfig libXrender \
+    libXtst libXi libXrandr libjpeg-turbo libpng \
+    libXcomposite libXdamage gtk3 dbus-glib mesa-libgbm cups-libs \
+    && dnf clean all
 
 # Download, unpack, and link the latest stable versions of Google Chrome and Chromedriver
 # using the official "Chrome for Testing" JSON endpoints. This is the most reliable method.
-RUN LATEST_JSON_URL="https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json" && \
-    CHROME_URL=$(curl -s ${LATEST_JSON_URL} | jq -r '.channels.Stable.downloads.chrome[] | select(.platform=="linux64") | .url') && \
-    DRIVER_URL=$(curl -s ${LATEST_JSON_URL} | jq -r '.channels.Stable.downloads.chromedriver[] | select(.platform=="linux64") | .url') && \
-    \
-    curl -s -L -o /tmp/chrome-linux64.zip ${CHROME_URL} && \
-    unzip -q /tmp/chrome-linux64.zip -d /opt/ && \
-    rm /tmp/chrome-linux64.zip && \
-    \
-    curl -s -L -o /tmp/chromedriver-linux64.zip ${DRIVER_URL} && \
-    unzip -q /tmp/chromedriver-linux64.zip -d /opt/ && \
-    rm /tmp/chromedriver-linux64.zip && \
-    \
-    ln -s /opt/chrome-linux64/chrome /usr/bin/google-chrome && \
-    ln -s /opt/chromedriver-linux64/chromedriver /usr/bin/chromedriver
+RUN LATEST_JSON_URL="https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json" &&     CHROME_URL=$(curl -s ${LATEST_JSON_URL} | jq -r '.versions[-1].downloads.chrome[] | select(.platform=="linux64") | .url') &&     DRIVER_URL=$(curl -s ${LATEST_JSON_URL} | jq -r '.versions[-1].downloads.chromedriver[] | select(.platform=="linux64") | .url') &&     curl -s -L -o /tmp/chrome-linux64.zip ${CHROME_URL} &&     unzip -q /tmp/chrome-linux64.zip -d /opt/ &&     rm /tmp/chrome-linux64.zip &&         curl -s -L -o /tmp/chromedriver-linux64.zip ${DRIVER_URL} &&     unzip -q /tmp/chromedriver-linux64.zip -d /opt/ &&     rm /tmp/chromedriver-linux64.zip &&         ln -s /opt/chrome-linux64/chrome /usr/bin/google-chrome &&     ln -s /opt/chromedriver-linux64/chromedriver /usr/bin/chromedriver &&     chmod +x /usr/bin/chromedriver
+
+# Set environment variables for Chrome and Chromedriver paths
+ENV CHROME_PATH=/usr/bin/google-chrome
+ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
+
+# --- Troubleshooting Section ---
+# Verify versions and paths, and check for missing dependencies.
+RUN echo "--- Verifying Chrome and Chromedriver ---" && \
+    google-chrome --version && \
+    chromedriver --version && \
+    echo "--- Checking file paths ---" && \
+    which google-chrome && \
+    which chromedriver && \
+    echo "--- Checking for missing dependencies (ldd) ---" && \
+    ldd $(which google-chrome) || echo "ldd check on chrome failed" && \
+    ldd $(which chromedriver) || echo "ldd check on chromedriver failed" && \
+    echo "--- Listing extracted chromedriver files ---" && \
+    ls -l /usr/bin/chromedriver*
 
 # Revert to the default non-root user for the Lambda runtime for security
-# USER sbx_user1051
+# USER sbx_user1051 # Temporarily commented out for troubleshooting user permissions
+
 
 # Create a working directory
 WORKDIR /var/task

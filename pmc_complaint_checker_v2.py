@@ -44,84 +44,70 @@ def run_command(command):
 
 def setup_driver():
     """
-    Set up Chrome WebDriver with headless options for efficiency.
+    Set up Chrome WebDriver, adapting to the execution environment.
+    - In a container (like Lambda), it uses the pre-installed chromedriver.
+    - For local execution, it uses webdriver-manager to download the driver.
     """
     print("--- Starting driver setup ---")
 
     chrome_options = Options()
     print("Setting Chrome options...")
-    # These are the crucial flags for running in a constrained, headless environment like Lambda
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--disable-sync")
-    chrome_options.add_argument(
-        "--disable-dev-tools"
-    )  # Recommended for server environments
-    chrome_options.add_argument(
-        "--no-zygote"
-    )  # Helps in environments with limited process creation
-    chrome_options.add_argument("--single-process")
     chrome_options.add_argument("--window-size=1920x1080")
     chrome_options.add_argument(
         "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
     )
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    # Writable directories for Chrome
-    chrome_options.add_argument("--user-data-dir=/tmp/user-data")
-    chrome_options.add_argument("--data-path=/tmp/data-path")
-    chrome_options.add_argument("--disk-cache-dir=/tmp/cache-dir")
-    chrome_options.add_argument("--homedir=/tmp")
+    # The following are recommended for running in a containerized environment
+    if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--disable-sync")
+        chrome_options.add_argument("--disable-dev-tools")
+        chrome_options.add_argument("--no-zygote")
+        chrome_options.add_argument("--single-process")
+        # chrome_options.add_argument("--user-data-dir=/tmp/user-data")
+        # chrome_options.add_argument("--data-path=/tmp/data-path")
+        # chrome_options.add_argument("--disk-cache-dir=/tmp/cache-dir")
+        # chrome_options.add_argument("--homedir=/tmp")
+        # Add headless argument specifically for Lambda/Docker environment
+        chrome_options.add_argument("--headless=new")
 
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
     print("Chrome options set.")
 
-    # --- START: Enhanced debugging block ---
-    # This block helps diagnose "Unable to obtain driver" errors by inspecting the environment.
-    # Once the issue is resolved, this can be removed for cleaner production logs.
-    print("\n--- Environment Sanity Check ---")
-    print("1. Checking PATH environment variable...")
-    run_command(["sh", "-c", "echo $PATH"])
-
-    print("\n2. Checking for 'chromedriver' in PATH...")
-    run_command(["which", "chromedriver"])
-
-    print("\n3. Checking for 'google-chrome' in PATH...")
-    run_command(["which", "google-chrome"])
-
-    print("\n4. Checking permissions and symlink details in /usr/bin...")
-    run_command(["ls", "-l", "/usr/bin/chromedriver", "/usr/bin/google-chrome"])
-
-    print("\n5. Checking contents and permissions of /opt directory...")
-    run_command(["ls", "-lR", "/opt"])
-    print("--- End Environment Sanity Check ---\n")
-    # --- END: Enhanced debugging block ---
-
-    # With binaries symlinked to /usr/bin in the Dockerfile, Selenium's
-    # Service() can find them automatically without an explicit path.
-    service = Service()
-    print("Service object created.")
-
-    print("Attempting to start webdriver.Chrome...")
     try:
+        # Check if running inside a container (e.g., Docker, Lambda)
+        if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+            print(
+                "Running in Lambda/Docker environment. Using pre-installed chromedriver."
+            )
+            chrome_options.binary_location = str(os.environ.get("CHROME_PATH"))
+            service = Service(executable_path=os.environ.get("CHROMEDRIVER_PATH"))
+        else:
+            # For local development, use webdriver-manager
+            print("Running in local environment. Using webdriver-manager.")
+            from webdriver_manager.chrome import ChromeDriverManager
+
+            service = Service(ChromeDriverManager().install())
+
+        # print("Attempting to start webdriver.Chrome...")
         driver = webdriver.Chrome(service=service, options=chrome_options)
         print("webdriver.Chrome started successfully.")
         return driver
+
     except Exception as e:
         print("!!! FAILED to start webdriver.Chrome !!!")
         print(f"Error Type: {type(e).__name__}")
         print(f"Error Message: {e}")
-        # Try to read the chromedriver log if it exists
-        try:
+        # Log chromedriver output if available
+        if os.path.exists("/tmp/chromedriver.log"):
             with open("/tmp/chromedriver.log", "r") as f:
                 print("--- Chromedriver Log ---")
                 print(f.read())
                 print("------------------------")
-        except Exception as log_e:
-            print(f"Could not read chromedriver log: {log_e}")
         raise e
 
 

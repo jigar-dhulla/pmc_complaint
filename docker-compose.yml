@@ -11,10 +11,18 @@ services:
     environment:
       - MYSQL_DATABASE=pmc_complaints
       - MYSQL_ROOT_PASSWORD=rootpassword
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u$MYSQL_USER", "-p$MYSQL_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   lambda-app:
     # The name of the service
     container_name: pmc-token-checker-local
+
+    platform: linux/x86_64
 
     # Build the image from the Dockerfile in the current directory
     build: .
@@ -29,9 +37,9 @@ services:
       - "9000:8080"
     
     # Wait for the mysql service to be 'healthy' before starting this service
-    # depends_on:
-    #   mysql:
-    #     condition: service_healthy
+    depends_on:
+      mysql:
+        condition: service_healthy
 
 
 
