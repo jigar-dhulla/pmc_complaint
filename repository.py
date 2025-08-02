@@ -49,9 +49,12 @@ class MySQLRepository(Repository):
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 token VARCHAR(255),
                 action_date VARCHAR(255),
+                from_user varchar(255) DEFAULT NULL,
+                to_user varchar(255) DEFAULT NULL,
                 status VARCHAR(255),
                 remark TEXT,
-                FOREIGN KEY (token) REFERENCES complaints (token)
+                FOREIGN KEY (token) REFERENCES complaints (token),
+                UNIQUE KEY `uniq_token_action_date` (`token`, `action_date`)
             )
             """,
         ]
@@ -75,9 +78,13 @@ class MySQLRepository(Repository):
                 (
                     token,
                     complaint_data.get("status"),
-                    complaint_data.get("token_details", {}).get("description"),
-                    complaint_data.get("token_details", {}).get("location"),
-                    complaint_data.get("token_details", {}).get("complaint_type"),
+                    complaint_data.get("token_details", {}).get(
+                        "description", "Unknown"
+                    ),
+                    complaint_data.get("token_details", {}).get("location", "Unknown"),
+                    complaint_data.get("token_details", {}).get(
+                        "complaint_type", "Unknown"
+                    ),
                     complaint_data.get("complaint_track", {})
                     .get("overall_info", {})
                     .get("complaint_category"),
@@ -92,12 +99,14 @@ class MySQLRepository(Repository):
             )
             for record in tracking_details:
                 cursor.execute(
-                    """INSERT IGNORE INTO tracking_history (token, action_date, status, remark) 
-                       VALUES (%s, %s, %s, %s)""",  # Use INSERT IGNORE to prevent duplicates
+                    """INSERT IGNORE INTO tracking_history (token, action_date, from_user, to_user, status, remark) 
+                       VALUES (%s, %s, %s, %s, %s, %s)""",  # Use INSERT IGNORE to prevent duplicates
                     (
                         token,
                         record.get("action_date"),
-                        record.get("status"),
+                        record.get("from_user"),
+                        record.get("to_user"),
+                        record.get("current_action"),
                         record.get("remark"),
                     ),
                 )

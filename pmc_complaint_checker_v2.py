@@ -160,7 +160,7 @@ def extract_token_details_from_table(driver):
         print("Timeout waiting for table data to load")
     except Exception as e:
         print(f"Error extracting token details from table: {e}")
-    return details
+    return _replace_empty_with_unknown(details)
 
 
 def extract_track_details(driver, track_button_id):
@@ -174,7 +174,7 @@ def extract_track_details(driver, track_button_id):
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "modalComplaintTrack"))
         )
-        time.sleep(2)
+        time.sleep(3)
         token_elem = driver.find_element(By.ID, "track_tokenNo")
         if token_elem:
             track_info["overall_info"]["token_no"] = token_elem.text.strip()
@@ -197,13 +197,13 @@ def extract_track_details(driver, track_button_id):
             if len(cols) >= 11:
                 track_detail = {
                     "sr": cols[0].text.strip(),
-                    "ticket_date": cols[1].text.strip(),
-                    "status": cols[2].text.strip(),
-                    "previous_status": cols[3].text.strip(),
-                    "complaint_type_detail": cols[4].text.strip(),
+                    "ticket_no": cols[1].text.strip(),
+                    "ticket_date": cols[2].text.strip(),
+                    "from_user": cols[3].text.strip(),
+                    "complaints": cols[4].text.strip(),
                     "office": cols[5].text.strip(),
                     "department": cols[6].text.strip(),
-                    "user": cols[7].text.strip(),
+                    "to_user": cols[7].text.strip(),
                     "remark": cols[8].text.strip(),
                     "action_date": cols[9].text.strip(),
                     "advice": cols[10].text.strip(),
@@ -295,22 +295,17 @@ def print_results(result):
         print("\nTracking History:")
         for detail in result["complaint_track"]["tracking_details"]:
             print(
-                f"  - {detail.get('action_date', 'N/A')}: {detail.get('status', 'N/A')} - {detail.get('advice', 'N/A')}"
+                f"  - {detail.get('action_date', 'N/A')}: {detail.get('current_action', 'N/A')} - {detail.get('remark', 'N/A')}"
             )
 
 
-def process_and_save_tokens(tokens):
+def fetch_token_details(tokens):
     """
     Processes a list of tokens, saves the results to the database, and returns them.
     """
-    repo = None
     driver = None
     results = []
     try:
-        # 1. Connect to the database first
-        print("Connecting to MySQL database...")
-        repo = MySQLRepository()
-        repo.connect()
         print("Database connection successful.")
 
         # 2. If connection is successful, setup the driver and scrape
@@ -326,16 +321,9 @@ def process_and_save_tokens(tokens):
                 print("\nWaiting before next request...")
                 time.sleep(3)
 
-        # 3. Save results to database
-        for result in results:
-            repo.save_complaint(result)
-        print("Results saved to the database.")
-
     finally:
         if driver:
             driver.quit()
-        if repo:
-            repo.close()
 
     return results
 
@@ -357,7 +345,18 @@ def lambda_handler(event, context):
                 "body": json.dumps({"message": "No valid tokens provided."}),
             }
 
-        results = process_and_save_tokens(valid_tokens)
+        # 1. Connect to the database first
+        print("Connecting to MySQL database...")
+        repo = MySQLRepository()
+        repo.connect()
+
+        # 2. Fetch Token Details
+        results = fetch_token_details(valid_tokens)
+
+        # 3. Save results to database
+        for result in results:
+            repo.save_complaint(result)
+        repo.close()
 
         return {
             "statusCode": 200,
@@ -402,18 +401,41 @@ def main():
         return
 
     try:
-        results = process_and_save_tokens(valid_tokens)
+        # 1. Connect to the database first
+        print("Connecting to MySQL database...")
+        repo = MySQLRepository()
+        repo.connect()
 
-        # Save results to local JSON file
-        json_filename = "pmc_complaint_statuses.json"
+        # 2. Fetch Token Details
+        results = fetch_token_details(valid_tokens)
+
+        # 4. Save results to local JSON file
+        date_now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        json_filename = f"pmc_complaint_statuses {date_now}.json"
         with open(json_filename, "w", encoding="utf-8") as jsonfile:
             json.dump(results, jsonfile, indent=2, ensure_ascii=False)
         print(f"Detailed results also saved to {json_filename}")
+
+        # 5. Save results to database
+        for result in results:
+            repo.save_complaint(result)
+        repo.close()
+        print("Results saved to the database.")
 
     except Exception as e:
         print(f"\nAn unexpected error occurred: {e}")
     finally:
         print("\nProcessing complete.")
+
+
+def _replace_empty_with_unknown(data: dict) -> dict:
+    """
+    replaces empty string values in dicts with 'Unknown'.
+    """
+    for key, value in data.items():
+        if value == "":
+            data[key] = "Unknown"
+    return data
 
 
 if __name__ == "__main__":
