@@ -77,7 +77,6 @@ The `scripts/build.sh` script prepares a `lambda_function.zip` file for deployme
 
 Set the following environment variables in your Lambda function configuration:
 
-- `DB_TYPE`: `mysql`
 - `DB_HOST`: Your MySQL database host
 - `DB_USER`: Your MySQL database username
 - `DB_PASSWORD`: Your MySQL database password
@@ -128,6 +127,8 @@ The database (`pmc_complaints` in MySQL) contains two tables:
 | `id` | `INT` | The unique ID of the tracking record (Primary Key) |
 | `token` | `VARCHAR(255)` | The complaint token number (Foreign Key to `complaints.token`) |
 | `action_date` | `VARCHAR(255)` | The date of the tracking action |
+| `from_user` | `VARCHAR(255)` | The user/department the task was forwarded from |
+| `to_user` | `VARCHAR(255)` | The user/department the task was forwarded to |
 | `status` | `VARCHAR(255)` | The status at the time of the tracking action |
 | `remark` | `TEXT` | Any remarks associated with the tracking action |
 
@@ -204,9 +205,10 @@ Processing complete.
 - The V2 script can extract detailed tracking history by clicking the track button automatically
 
 ## TODO
-- Make this script working on aws lambda.
-  - to make it work on lambda, we need lambda environment on local so that we can troubleshoot quickly
-- create eventbridge rule to run the lambda periodically
+
+- Deploy the function to AWS Lambda.
+- Set up an Amazon EventBridge (or CloudWatch Events) rule to trigger the Lambda function periodically.
+- Implement more robust error handling and notifications (e.g., via SNS or SES).
 
 
 ## License

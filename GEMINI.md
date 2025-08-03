@@ -38,7 +38,9 @@ pip install selenium webdriver-manager mysql-connector-python python-dotenv
 source venv/bin/activate && python3 pmc_complaint_checker_v2.py T60137 T60268
 ```
 
+## Database
 
+The project uses a MySQL database to store complaint data. The schema is defined in `repository.py` and documented in `README.md`. When running locally, use the provided Docker Compose setup as described above.
 
 ## Environment Variables
 
