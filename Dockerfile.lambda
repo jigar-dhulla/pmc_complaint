@@ -29,9 +29,6 @@ RUN LATEST_JSON_URL="https://googlechromelabs.github.io/chrome-for-testing/known
 ENV CHROME_PATH=/usr/bin/google-chrome
 ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 
-# Revert to the default non-root user for the Lambda runtime for security
-USER sbx_user1051
-
 # Create a working directory
 WORKDIR ${LAMBDA_TASK_ROOT}
 
@@ -43,6 +40,9 @@ RUN python3 -m pip install -r requirements.lambda.txt
 
 # Copy function code
 COPY pmc_complaint_checker_v2.py repository.py ./
+
+# Revert to the default non-root user for the Lambda runtime for security
+USER sbx_user1051
 
 # Set the CMD to your handler.
 CMD [ "pmc_complaint_checker_v2.lambda_handler" ]
