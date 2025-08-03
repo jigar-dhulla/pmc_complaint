@@ -5,6 +5,9 @@ FROM public.ecr.aws/lambda/python:3.13
 # Switch to root user to install system dependencies
 USER root
 
+# Install core tools like jq and unzip first
+RUN dnf install -y jq unzip which && dnf clean all
+
 # Install required packages for headless Chrome and other tools
 RUN dnf install -y mesa-libGL-devel mesa-libEGL-devel libxcb-devel libxkbcommon-devel libxkbcommon-x11-devel xorg-x11-server-Xvfb pango-devel libXScrnSaver-devel alsa-lib-devel cups-devel libxshmfence-devel nss-devel at-spi2-atk-devel liberation-sans-fonts wget nss fontconfig libXrender libXtst libXi libXrandr libjpeg-turbo libpng libXcomposite libXdamage gtk3 dbus-glib mesa-libgbm cups-libs && dnf clean all
 
