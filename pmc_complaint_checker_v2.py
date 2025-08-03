@@ -22,6 +22,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import uuid
+import shutil
+import glob
 
 
 def run_command(command):
@@ -45,64 +47,84 @@ def run_command(command):
 
 def setup_driver():
     """
-    Set up Chrome WebDriver, adapting to the execution environment.
-    - In a container (like Lambda), it uses the pre-installed chromedriver.
-    - For local execution, it uses webdriver-manager to download the driver.
+    Setup Chrome WebDriver for AWS Lambda with proper Chrome options, user data cleanup,
+    and FONTCONFIG_PATH environment variable setting.
     """
+
     print("--- Starting driver setup ---")
 
+    # Ensure FONTCONFIG_PATH is set properly
+    fontconfig_cache_dir = "/tmp/.fontconfig"
+    if not os.path.exists(fontconfig_cache_dir):
+        print(f"Creating fontconfig cache directory at {fontconfig_cache_dir}")
+        os.makedirs(fontconfig_cache_dir, exist_ok=True)
+    os.environ["FONTCONFIG_PATH"] = fontconfig_cache_dir
+
+    # Cleanup any leftover user-data directories to avoid conflicts
+    for old_dir in glob.glob("/tmp/user-data-*"):
+        try:
+            print(f"Removing stale user data directory: {old_dir}")
+            shutil.rmtree(old_dir)
+        except Exception as e:
+            print(f"Warning: Failed to remove directory {old_dir}: {e}")
+
     chrome_options = Options()
+
     print("Setting Chrome options...")
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920x1080")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-sync")
+    chrome_options.add_argument("--no-zygote")
+    chrome_options.add_argument("--single-process")
+    chrome_options.add_argument("--no-first-run")
+    chrome_options.add_argument("--no-default-browser-check")
+    chrome_options.add_argument("--disable-setuid-sandbox")
+    chrome_options.add_argument("--disable-popup-blocking")
+
+    user_data_dir = f"/tmp/user-data-{uuid.uuid4()}"
+    print(f"Using unique user data directory: {user_data_dir}")
+    chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
+    chrome_options.add_argument("--data-path=/tmp/data-path")
+    chrome_options.add_argument("--disk-cache-dir=/tmp/cache-dir")
+    chrome_options.add_argument("--homedir=/tmp")
+
+    # User agent can be customized or kept as is
     chrome_options.add_argument(
-        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
     )
 
-    # Lambda/Docker specific options
-    if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
-        print("Applying Lambda/Docker specific Chrome options.")
-        chrome_options.add_argument("--disable-extensions")
-        chrome_options.add_argument("--disable-sync")
-        chrome_options.add_argument("--no-zygote")
-        chrome_options.add_argument("--single-process")
-        user_data_dir = f"/tmp/user-data-{uuid.uuid4()}"
-        chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
-        chrome_options.add_argument("--data-path=/tmp/data-path")
-        chrome_options.add_argument("--disk-cache-dir=/tmp/cache-dir")
-        chrome_options.add_argument("--homedir=/tmp")
-        chrome_options.add_argument("--disable-setuid-sandbox")
-
+    # Exclude automation switches for less fingerprinting
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
-    print("Chrome options set.")
 
     try:
         if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
             print(
-                "Running in Lambda/Docker environment. Using pre-installed chromedriver."
+                "Running in Lambda/Docker environment. Using pre-installed chromedriver and chrome."
             )
 
             chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
             chrome_path = os.environ.get("CHROME_PATH")
 
-            if chrome_path == None or chromedriver_path == None:
-                return
-            
-            # Verify paths and permissions
-            if not os.path.exists(chromedriver_path):
+            if not chromedriver_path or not chrome_path:
+                raise EnvironmentError(
+                    "CHROMEDRIVER_PATH or CHROME_PATH environment variable not set."
+                )
+
+            if not os.path.exists(chromedriver_path) or not os.access(
+                chromedriver_path, os.X_OK
+            ):
                 raise FileNotFoundError(
-                    f"Chromedriver not found at: {chromedriver_path}"
+                    f"Chromedriver not found or not executable at {chromedriver_path}"
                 )
-            if not os.access(chromedriver_path, os.X_OK):
-                raise PermissionError(
-                    f"Chromedriver is not executable: {chromedriver_path}"
-                )
+
             if not os.path.exists(chrome_path):
-                raise FileNotFoundError(f"Chrome binary not found at: {chrome_path}")
+                raise FileNotFoundError(f"Chrome binary not found at {chrome_path}")
 
             chrome_options.binary_location = chrome_path
 
@@ -111,35 +133,54 @@ def setup_driver():
                 service_args=["--verbose", "--log-path=/tmp/chromedriver.log"],
             )
         else:
-            print("Running in local environment. Using webdriver-manager.")
             from webdriver_manager.chrome import ChromeDriverManager
 
+            print("Running locally. Downloading chromedriver with webdriver-manager.")
             service = Service(ChromeDriverManager().install())
 
-        print("Attempting to start webdriver.Chrome...")
+        print("Starting Chrome WebDriver...")
         driver = webdriver.Chrome(service=service, options=chrome_options)
-        print("webdriver.Chrome started successfully.")
+        print("Chrome WebDriver started successfully.")
+
+        # Attach the user_data_dir to driver object for cleanup in calling code
+        driver._user_data_dir = user_data_dir # type: ignore
+
         return driver
 
     except Exception as e:
-        print("!!! FAILED to start webdriver.Chrome !!!")
+        print("!!! FAILED to start Chrome WebDriver !!!")
         print(f"Error Type: {type(e).__name__}")
         print(f"Error Message: {e}")
 
-        # Log chromedriver output if available
-        if os.path.exists("/tmp/chromedriver.log"):
-            with open("/tmp/chromedriver.log", "r") as f:
-                print("--- Chromedriver Log ---")
+        # Dump chromedriver logs if available for debugging
+        chromedriver_log_path = "/tmp/chromedriver.log"
+        if os.path.exists(chromedriver_log_path):
+            print("--- Chromedriver Log Start ---")
+            with open(chromedriver_log_path, "r") as f:
                 print(f.read())
-                print("------------------------")
-
-        # Add more debug info
-        run_command(["ls", "-l", "/opt/chrome-linux64/"])
-        run_command(["ls", "-l", "/opt/chromedriver-linux64/"])
-        run_command(["google-chrome", "--version"])
-        run_command(["chromedriver", "--version"])
+            print("--- Chromedriver Log End ---")
 
         raise e
+
+
+def cleanup_driver(driver):
+    """
+    Cleanup function to safely quit driver and delete temporary user data directory.
+    """
+
+    try:
+        if driver:
+            user_data_dir = getattr(driver, "_user_data_dir", None)
+            driver.quit()
+            print("Chrome WebDriver quit successfully.")
+
+            if user_data_dir and os.path.exists(user_data_dir):
+                print(f"Removing user data directory: {user_data_dir}")
+                shutil.rmtree(user_data_dir)
+            else:
+                print("No user data directory to remove or already removed.")
+    except Exception as ex:
+        print(f"Error during driver cleanup: {ex}")
 
 
 def validate_token(token):
