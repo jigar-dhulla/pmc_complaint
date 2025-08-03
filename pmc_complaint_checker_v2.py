@@ -71,6 +71,8 @@ def setup_driver():
         chrome_options.add_argument("--user-data-dir=/tmp/user-data")
         chrome_options.add_argument("--data-path=/tmp/data-path")
         chrome_options.add_argument("--disk-cache-dir=/tmp/cache-dir")
+        chrome_options.add_argument("--homedir=/tmp")
+        chrome_options.add_argument("--disable-setuid-sandbox")
 
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
