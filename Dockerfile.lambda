@@ -29,6 +29,7 @@ RUN LATEST_JSON_URL="https://googlechromelabs.github.io/chrome-for-testing/known
 # Set environment variables for Chrome and Chromedriver paths
 ENV CHROME_PATH=/usr/bin/google-chrome
 ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
+ENV FONTCONFIG_PATH=/tmp/.fontconfig
 
 # Create a working directory
 WORKDIR ${LAMBDA_TASK_ROOT}
@@ -43,10 +44,7 @@ RUN python3 -m pip install -r requirements.lambda.txt
 COPY pmc_complaint_checker_v2.py repository.py ./
 
 # Create directories for Chrome user data and cache and set permissions
-RUN mkdir -p /tmp/user-data /tmp/data-path /tmp/cache-dir &&     chmod -R 777 /tmp/user-data /tmp/data-path /tmp/cache-dir
-
-# Revert to the default non-root user for the Lambda runtime for security
-
+RUN mkdir -p /tmp/data-path /tmp/cache-dir /tmp/.fontconfig && chmod -R 777 /tmp /tmp/.fontconfig /tmp/data-path /tmp/cache-dir
 
 # Set the CMD to your handler.
 CMD [ "pmc_complaint_checker_v2.lambda_handler" ]

@@ -21,6 +21,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import uuid
 
 
 def run_command(command):
@@ -68,7 +69,8 @@ def setup_driver():
         chrome_options.add_argument("--disable-sync")
         chrome_options.add_argument("--no-zygote")
         chrome_options.add_argument("--single-process")
-        chrome_options.add_argument("--user-data-dir=/tmp/user-data")
+        user_data_dir = f"/tmp/user-data-{uuid.uuid4()}"
+        chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
         chrome_options.add_argument("--data-path=/tmp/data-path")
         chrome_options.add_argument("--disk-cache-dir=/tmp/cache-dir")
         chrome_options.add_argument("--homedir=/tmp")
@@ -80,21 +82,30 @@ def setup_driver():
 
     try:
         if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
-            print("Running in Lambda/Docker environment. Using pre-installed chromedriver.")
-            
+            print(
+                "Running in Lambda/Docker environment. Using pre-installed chromedriver."
+            )
+
             chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
             chrome_path = os.environ.get("CHROME_PATH")
 
+            if chrome_path == None or chromedriver_path == None:
+                return
+            
             # Verify paths and permissions
             if not os.path.exists(chromedriver_path):
-                raise FileNotFoundError(f"Chromedriver not found at: {chromedriver_path}")
+                raise FileNotFoundError(
+                    f"Chromedriver not found at: {chromedriver_path}"
+                )
             if not os.access(chromedriver_path, os.X_OK):
-                raise PermissionError(f"Chromedriver is not executable: {chromedriver_path}")
+                raise PermissionError(
+                    f"Chromedriver is not executable: {chromedriver_path}"
+                )
             if not os.path.exists(chrome_path):
                 raise FileNotFoundError(f"Chrome binary not found at: {chrome_path}")
 
             chrome_options.binary_location = chrome_path
-            
+
             service = Service(
                 executable_path=chromedriver_path,
                 service_args=["--verbose", "--log-path=/tmp/chromedriver.log"],
@@ -102,6 +113,7 @@ def setup_driver():
         else:
             print("Running in local environment. Using webdriver-manager.")
             from webdriver_manager.chrome import ChromeDriverManager
+
             service = Service(ChromeDriverManager().install())
 
         print("Attempting to start webdriver.Chrome...")
@@ -113,20 +125,20 @@ def setup_driver():
         print("!!! FAILED to start webdriver.Chrome !!!")
         print(f"Error Type: {type(e).__name__}")
         print(f"Error Message: {e}")
-        
+
         # Log chromedriver output if available
         if os.path.exists("/tmp/chromedriver.log"):
             with open("/tmp/chromedriver.log", "r") as f:
                 print("--- Chromedriver Log ---")
                 print(f.read())
                 print("------------------------")
-        
+
         # Add more debug info
         run_command(["ls", "-l", "/opt/chrome-linux64/"])
         run_command(["ls", "-l", "/opt/chromedriver-linux64/"])
         run_command(["google-chrome", "--version"])
         run_command(["chromedriver", "--version"])
-        
+
         raise e
 
 
