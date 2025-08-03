@@ -25,7 +25,9 @@ services:
     platform: linux/x86_64
 
     # Build the image from the Dockerfile in the current directory
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.lambda
 
     # Load environment variables from the .env file
     env_file:

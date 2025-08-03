@@ -60,40 +60,49 @@ def setup_driver():
     chrome_options.add_argument(
         "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
     )
-    # The following are recommended for running in a containerized environment
+
+    # Lambda/Docker specific options
     if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        print("Applying Lambda/Docker specific Chrome options.")
         chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--disable-sync")
-        chrome_options.add_argument("--disable-dev-tools")
         chrome_options.add_argument("--no-zygote")
         chrome_options.add_argument("--single-process")
-        # chrome_options.add_argument("--user-data-dir=/tmp/user-data")
-        # chrome_options.add_argument("--data-path=/tmp/data-path")
-        # chrome_options.add_argument("--disk-cache-dir=/tmp/cache-dir")
-        # chrome_options.add_argument("--homedir=/tmp")
-        # Add headless argument specifically for Lambda/Docker environment
-        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--user-data-dir=/tmp/user-data")
+        chrome_options.add_argument("--data-path=/tmp/data-path")
+        chrome_options.add_argument("--disk-cache-dir=/tmp/cache-dir")
 
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
     print("Chrome options set.")
 
     try:
-        # Check if running inside a container (e.g., Docker, Lambda)
         if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
-            print(
-                "Running in Lambda/Docker environment. Using pre-installed chromedriver."
+            print("Running in Lambda/Docker environment. Using pre-installed chromedriver.")
+            
+            chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
+            chrome_path = os.environ.get("CHROME_PATH")
+
+            # Verify paths and permissions
+            if not os.path.exists(chromedriver_path):
+                raise FileNotFoundError(f"Chromedriver not found at: {chromedriver_path}")
+            if not os.access(chromedriver_path, os.X_OK):
+                raise PermissionError(f"Chromedriver is not executable: {chromedriver_path}")
+            if not os.path.exists(chrome_path):
+                raise FileNotFoundError(f"Chrome binary not found at: {chrome_path}")
+
+            chrome_options.binary_location = chrome_path
+            
+            service = Service(
+                executable_path=chromedriver_path,
+                service_args=["--verbose", "--log-path=/tmp/chromedriver.log"],
             )
-            chrome_options.binary_location = str(os.environ.get("CHROME_PATH"))
-            service = Service(executable_path=os.environ.get("CHROMEDRIVER_PATH"))
         else:
-            # For local development, use webdriver-manager
             print("Running in local environment. Using webdriver-manager.")
             from webdriver_manager.chrome import ChromeDriverManager
-
             service = Service(ChromeDriverManager().install())
 
-        # print("Attempting to start webdriver.Chrome...")
+        print("Attempting to start webdriver.Chrome...")
         driver = webdriver.Chrome(service=service, options=chrome_options)
         print("webdriver.Chrome started successfully.")
         return driver
@@ -102,12 +111,20 @@ def setup_driver():
         print("!!! FAILED to start webdriver.Chrome !!!")
         print(f"Error Type: {type(e).__name__}")
         print(f"Error Message: {e}")
+        
         # Log chromedriver output if available
         if os.path.exists("/tmp/chromedriver.log"):
             with open("/tmp/chromedriver.log", "r") as f:
                 print("--- Chromedriver Log ---")
                 print(f.read())
                 print("------------------------")
+        
+        # Add more debug info
+        run_command(["ls", "-l", "/opt/chrome-linux64/"])
+        run_command(["ls", "-l", "/opt/chromedriver-linux64/"])
+        run_command(["google-chrome", "--version"])
+        run_command(["chromedriver", "--version"])
+        
         raise e
 
 

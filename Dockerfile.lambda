@@ -23,7 +23,8 @@ RUN LATEST_JSON_URL="https://googlechromelabs.github.io/chrome-for-testing/known
     rm /tmp/chromedriver-linux64.zip && \
     ln -s /opt/chrome-linux64/chrome /usr/bin/google-chrome && \
     ln -s /opt/chromedriver-linux64/chromedriver /usr/bin/chromedriver && \
-    chmod +x /usr/bin/chromedriver
+    chmod +x /usr/bin/chromedriver && \
+    chmod +x /usr/bin/google-chrome
 
 # Set environment variables for Chrome and Chromedriver paths
 ENV CHROME_PATH=/usr/bin/google-chrome
@@ -41,8 +42,11 @@ RUN python3 -m pip install -r requirements.lambda.txt
 # Copy function code
 COPY pmc_complaint_checker_v2.py repository.py ./
 
+# Create directories for Chrome user data and cache and set permissions
+RUN mkdir -p /tmp/user-data /tmp/data-path /tmp/cache-dir &&     chmod -R 777 /tmp/user-data /tmp/data-path /tmp/cache-dir
+
 # Revert to the default non-root user for the Lambda runtime for security
-USER sbx_user1051
+
 
 # Set the CMD to your handler.
 CMD [ "pmc_complaint_checker_v2.lambda_handler" ]
