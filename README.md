@@ -101,9 +101,9 @@ For a consistent development environment, you can use the provided `docker-compo
 
 The script is designed to be deployed as an AWS Lambda function with a Python 3.13 runtime. The handler is `pmc_complaint_checker_v2.lambda_handler`.
 
-**Build Script:**
+**Container Image Deployment:**
 
-The `scripts/build.sh` script prepares a `lambda_function.zip` file for deployment. This zip file contains the application code and its Python dependencies.
+The Lambda function uses a Docker container image built from `Dockerfile.lambda`. This approach provides better dependency management and supports the Chrome browser required for web scraping.
 
 **Environment Variables:**
 
