@@ -2,6 +2,21 @@
 
 This Python script automates checking the status of multiple PMC (Pune Municipal Corporation) complaint token numbers from their official website.
 
+## Who Should Use This
+
+This tool is designed for:
+
+- **Citizens** who have lodged complaints with PMC and want to track their status programmatically
+- **Community organizations** monitoring multiple complaints in their area
+- **Developers** building applications that need to integrate PMC complaint status data
+- **Data analysts** collecting PMC complaint data for research or reporting purposes
+
+**Use Case Examples:**
+- Track your own complaint tokens (e.g., T60137, T60268) without manually visiting the website
+- Monitor complaint resolution patterns in your neighborhood
+- Build dashboards or notifications for complaint status changes
+- Collect data for urban governance research
+
 ## Features
 
 - Automated web scraping using Selenium
@@ -16,6 +31,8 @@ This Python script automates checking the status of multiple PMC (Pune Municipal
 
 1. **Python 3.13** installed
 2. **Google Chrome** browser installed (for local development)
+3. **Docker** and **Docker Compose** (optional, for containerized MySQL)
+4. **AWS Account** (optional, for Lambda deployment)
 
 ## Installation
 
@@ -31,8 +48,23 @@ python3.13 -m venv venv
 source venv/bin/activate
 
 # Install required packages
-pip install selenium webdriver-manager mysql-connector-python python-dotenv
+pip install -r requirements.txt
 ```
+
+### 2. Environment Configuration
+
+Copy the example environment file and configure your database settings:
+
+```bash
+cp .env.example .env
+# Edit .env with your database credentials
+```
+
+Required environment variables:
+- `DB_HOST`: MySQL database host
+- `DB_USER`: MySQL database username  
+- `DB_PASSWORD`: MySQL database password
+- `DB_NAME`: Database name (default: pmc_complaints)
 
 ## Usage
 
@@ -204,11 +236,45 @@ Processing complete.
 - Only valid tokens that exist in the PMC system will return results
 - The V2 script can extract detailed tracking history by clicking the track button automatically
 
-## TODO
+## AWS Lambda Deployment via GitHub Actions
 
-- Deploy the function to AWS Lambda.
-- Set up an Amazon EventBridge (or CloudWatch Events) rule to trigger the Lambda function periodically.
-- Implement more robust error handling and notifications (e.g., via SNS or SES).
+This project includes automated deployment to AWS Lambda using GitHub Actions. To set up deployment:
+
+### 1. Fork this repository
+
+### 2. Configure GitHub Secrets and Variables
+
+In your forked repository, go to Settings → Secrets and variables → Actions and add:
+
+**Repository Secrets:**
+- `AWS_ROLE_TO_ASSUME`: ARN of your AWS IAM role for OIDC authentication
+
+**Repository Variables:**
+- `AWS_REGION`: Your AWS region (e.g., `us-east-1`)
+- `ECR_REPOSITORY`: Your Amazon ECR repository name
+- `LAMBDA_FUNCTION_NAME`: Your Lambda function name
+
+### 3. AWS Infrastructure Setup
+
+Before using the GitHub Actions workflow, you'll need to set up:
+
+1. **ECR Repository**: Create an Amazon ECR repository to store Docker images
+2. **Lambda Function**: Create a Lambda function configured to use container images
+3. **IAM Role**: Create an IAM role with:
+   - Trust policy for GitHub OIDC (`arn:aws:iam::ACCOUNT:oidc-provider/token.actions.githubusercontent.com`)
+   - Permissions for ECR and Lambda operations
+4. **Database**: Set up your MySQL database and configure Lambda environment variables
+
+### 4. Automatic Deployment
+
+Once configured, pushes to the `main` branch will automatically:
+- Build the Docker image using `Dockerfile.lambda`
+- Push to your ECR repository  
+- Update your Lambda function with the new image
+
+## Manual AWS Setup
+
+If you prefer manual deployment, see the `Dockerfile.lambda` and use standard AWS CLI commands or AWS Console.
 
 
 ## License
