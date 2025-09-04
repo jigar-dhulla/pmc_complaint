@@ -1,0 +1,103 @@
+@startuml PMC Complaint Status Checker - System Design
+
+title PMC Complaint Status Checker - System Architecture
+
+actor User
+actor "GitHub Actions" as GHA
+actor "PMC Website" as PMC
+
+package "Local Environment" {
+    component CLI [
+        CLI Application
+        --
+        main()
+        process_token()
+        validate_token()
+    ]
+    
+    database MySQL [
+        MySQL Container
+        --
+        pmc_complaints DB
+    ]
+}
+
+package "AWS Cloud" {
+    component Lambda [
+        Lambda Function
+        --
+        lambda_handler()
+        Chrome WebDriver
+        Selenium Automation
+    ]
+    
+    component ECR [
+        ECR Repository
+        --
+        Docker Images
+        Version Management
+    ]
+    
+    database RDS [
+        MySQL Database
+        --
+        complaints table
+        tracking_history table
+    ]
+}
+
+package "Core Components" {
+    component Scraper [
+        Web Scraper
+        --
+        Chrome WebDriver Setup
+        Element Extraction
+        Modal Handling
+        Tracking History
+    ]
+    
+    component Repo [
+        Database Repository
+        --
+        MySQLRepository
+        save_complaint_data()
+        create_tables()
+    ]
+    
+    component Models [
+        Data Models
+        --
+        Complaint Data
+        Token Validation
+        Tracking History
+    ]
+}
+
+' User Interactions
+User --> CLI : python script.py T12345
+User --> Lambda : API Gateway/Direct Invoke
+
+' GitHub Actions Flow
+User --> GHA : Push to main branch
+GHA --> ECR : Build & Push Image
+GHA --> Lambda : Update Function Code
+
+' Local Development Flow
+CLI --> Scraper : Process tokens
+CLI --> MySQL : Local database
+MySQL --> Repo : Database operations
+
+' AWS Lambda Flow
+Lambda --> Scraper : Process tokens
+Lambda --> RDS : Store results
+
+' Web Scraping Flow
+Scraper --> PMC : Submit token forms
+PMC --> Scraper : Return complaint data
+Scraper --> Repo : Save to database
+
+' Core Component Relationships
+Scraper --> Models : Data validation
+Repo --> Models : Database schema
+
+@enduml
